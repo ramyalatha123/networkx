@@ -940,6 +940,95 @@ class TestDynamicTopologicalSorter:
         with pytest.raises(nx.NetworkXError):
             nx.DynamicTopologicalSorter(G)
 
+    def test_randomized_dag_order_valid(self):
+        # Insert edges into a random DAG and verify topological order is valid
+        import random
+
+        rng = random.Random(0)
+        n = 50
+        s = nx.DynamicTopologicalSorter()
+        G = nx.DiGraph()
+        for i in range(n):
+            s.add_node(i)
+            G.add_node(i)
+        edges = [(u, v) for u in range(n) for v in range(u + 1, n)]
+        rng.shuffle(edges)
+        for u, v in edges[:100]:
+            s.add_edge(u, v)
+            G.add_edge(u, v)
+        order = s.topological_order()
+        pos = {node: i for i, node in enumerate(order)}
+        for u, v in G.edges:
+            assert pos[u] < pos[v], f"Edge ({u},{v}) violates order"
+
+    def test_randomized_cycle_detection(self):
+        # Random insertions: any back-edge must raise NetworkXUnfeasible
+        import random
+
+        rng = random.Random(1)
+        n = 30
+        s = nx.DynamicTopologicalSorter()
+        G = nx.DiGraph()
+        for i in range(n):
+            s.add_node(i)
+            G.add_node(i)
+        # Insert only forward edges (u < v) — none should raise
+        forward_edges = [(u, v) for u in range(n) for v in range(u + 1, n)]
+        rng.shuffle(forward_edges)
+        for u, v in forward_edges[:60]:
+            s.add_edge(u, v)
+            G.add_edge(u, v)
+        # Any back-edge (v -> u where u < v already in graph) must raise
+        for u, v in rng.sample(forward_edges[:60], 10):
+            with pytest.raises(nx.NetworkXUnfeasible):
+                s.add_edge(v, u)  # reverse of existing forward edge = cycle
+
+    def test_stress_large_chain(self):
+        # Insert 500-node chain; order must be exactly 0,1,...,499
+        s = nx.DynamicTopologicalSorter()
+        for i in range(500):
+            s.add_node(i)
+        for i in range(499):
+            s.add_edge(i, i + 1)
+        assert s.topological_order() == list(range(500))
+
+    def test_stress_wide_dag(self):
+        # One source, 200 independent nodes, one sink; order must respect edges
+        s = nx.DynamicTopologicalSorter()
+        source, sink = 0, 201
+        s.add_node(source)
+        s.add_node(sink)
+        for i in range(1, 201):
+            s.add_node(i)
+            s.add_edge(source, i)
+            s.add_edge(i, sink)
+        order = s.topological_order()
+        pos = {n: i for i, n in enumerate(order)}
+        for i in range(1, 201):
+            assert pos[source] < pos[i]
+            assert pos[i] < pos[sink]
+
+    def test_incremental_matches_full_sort(self):
+        # After each insertion, dynamic order must satisfy all current edges
+        import random
+
+        rng = random.Random(99)
+        n = 40
+        s = nx.DynamicTopologicalSorter()
+        G = nx.DiGraph()
+        for i in range(n):
+            s.add_node(i)
+            G.add_node(i)
+        candidates = [(u, v) for u in range(n) for v in range(u + 1, n)]
+        rng.shuffle(candidates)
+        for u, v in candidates[:80]:
+            s.add_edge(u, v)
+            G.add_edge(u, v)
+            order = s.topological_order()
+            pos = {node: idx for idx, node in enumerate(order)}
+            for a, b in G.edges:
+                assert pos[a] < pos[b]
+
 
 def test_v_structures_raise():
     G = nx.Graph()
