@@ -27,7 +27,9 @@ def build_random_dag(n_nodes, n_edges, seed=42):
         u, v = rng.sample(nodes, 2)
         if u < v:  # enforce u < v to guarantee no cycles
             edges.add((u, v))
-    return list(edges)
+    edges = sorted(edges)
+    rng.shuffle(edges)
+    return edges
 
 
 def benchmark_baseline(edges, n_nodes):

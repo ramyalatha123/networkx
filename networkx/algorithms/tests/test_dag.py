@@ -992,6 +992,15 @@ class TestDynamicTopologicalSorter:
             s.add_edge(i, i + 1)
         assert s.topological_order() == list(range(500))
 
+    def test_adversarial_reverse_chain(self):
+        # Nodes added in reverse so every edge insertion violates the current order
+        s = nx.DynamicTopologicalSorter()
+        for i in range(99, -1, -1):  # pos = {99:0, 98:1, ..., 0:99}
+            s.add_node(i)
+        for i in range(99):  # 0->1: pos[0]=99 > pos[1]=98, triggers reorder each time
+            s.add_edge(i, i + 1)
+        assert s.topological_order() == list(range(100))
+
     def test_stress_wide_dag(self):
         # One source, 200 independent nodes, one sink; order must respect edges
         s = nx.DynamicTopologicalSorter()
